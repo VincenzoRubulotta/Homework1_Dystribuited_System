@@ -1,0 +1,29 @@
+syntax= "proto3";
+
+package usermanager;
+
+
+message UserData {
+    string email = 1;
+    string name = 2;
+    string surname = 3;
+  }
+  
+  message UserIdentifier {
+    string email = 1;
+  }
+  
+  message Status {
+    bool ok = 1;
+    string message = 2;
+  }
+  
+  message UserExistsResponse {
+    bool exists = 1;
+}
+
+service UserManager {
+    rpc RegisterUser(UserData) returns (Status);
+    rpc DeleteUser(UserIdentifier) returns (Status);
+    rpc CheckUserExists(UserIdentifier) returns (UserExistsResponse);
+}
