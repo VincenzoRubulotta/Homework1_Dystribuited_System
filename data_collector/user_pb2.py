@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0cserver.proto\x12\x0busermanager\"\'\n\x08UserData\x12\r\n\x05\x65mail\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\"\x1f\n\x0eUserIdentifier\x12\r\n\x05\x65mail\x18\x01 \x01(\t\"%\n\x06Status\x12\n\n\x02ok\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\"$\n\x12UserExistsResponse\x12\x0e\n\x06\x65xists\x18\x01 \x01(\x08\x32\xda\x01\n\x0bUserManager\x12:\n\x0cRegisterUser\x12\x15.usermanager.UserData\x1a\x13.usermanager.Status\x12>\n\nDeleteUser\x12\x1b.usermanager.UserIdentifier\x1a\x13.usermanager.Status\x12O\n\x0f\x43heckUserExists\x12\x1b.usermanager.UserIdentifier\x1a\x1f.usermanager.UserExistsResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0cserver.proto\x12\x0busermanager\"8\n\x08UserData\x12\r\n\x05\x65mail\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x0f\n\x07surname\x18\x03 \x01(\t\"\x1f\n\x0eUserIdentifier\x12\r\n\x05\x65mail\x18\x01 \x01(\t\"%\n\x06Status\x12\n\n\x02ok\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\"$\n\x12UserExistsResponse\x12\x0e\n\x06\x65xists\x18\x01 \x01(\x08\x32\xda\x01\n\x0bUserManager\x12:\n\x0cRegisterUser\x12\x15.usermanager.UserData\x1a\x13.usermanager.Status\x12>\n\nDeleteUser\x12\x1b.usermanager.UserIdentifier\x1a\x13.usermanager.Status\x12O\n\x0f\x43heckUserExists\x12\x1b.usermanager.UserIdentifier\x1a\x1f.usermanager.UserExistsResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -32,13 +32,13 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'server_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_USERDATA']._serialized_start=29
-  _globals['_USERDATA']._serialized_end=68
-  _globals['_USERIDENTIFIER']._serialized_start=70
-  _globals['_USERIDENTIFIER']._serialized_end=101
-  _globals['_STATUS']._serialized_start=103
-  _globals['_STATUS']._serialized_end=140
-  _globals['_USEREXISTSRESPONSE']._serialized_start=142
-  _globals['_USEREXISTSRESPONSE']._serialized_end=178
-  _globals['_USERMANAGER']._serialized_start=181
-  _globals['_USERMANAGER']._serialized_end=399
+  _globals['_USERDATA']._serialized_end=85
+  _globals['_USERIDENTIFIER']._serialized_start=87
+  _globals['_USERIDENTIFIER']._serialized_end=118
+  _globals['_STATUS']._serialized_start=120
+  _globals['_STATUS']._serialized_end=157
+  _globals['_USEREXISTSRESPONSE']._serialized_start=159
+  _globals['_USEREXISTSRESPONSE']._serialized_end=195
+  _globals['_USERMANAGER']._serialized_start=198
+  _globals['_USERMANAGER']._serialized_end=416
 # @@protoc_insertion_point(module_scope)

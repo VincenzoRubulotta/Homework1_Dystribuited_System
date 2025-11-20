@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package datacollector;
+
+
+message UserIdentifier {
+    string email = 1;
+}
+
+message Status {
+    bool ok = 1;
+    string message = 2;
+}
+
+message InterestRequest {
+    string user_email = 1;
+    repeated string airport_icao = 2; 
+}
+
+message FlightInfo {
+    string icao24 = 1;
+    int64 first_seen = 2;
+    int64 last_seen = 3;
+    string callsign = 4;
+    string est_departure_airport = 5; 
+    string est_arrival_airport = 6;
+}
+
+message HistoricalDataResponse {
+    bool success = 1;
+    string message = 2; 
+    repeated FlightInfo flights = 3;
+}
+
+
+service DataCollector {
+    rpc RegisterInterest(InterestRequest) returns (Status);
+    
+    rpc GetHistoricalData(InterestRequest) returns (HistoricalDataResponse);
+}
