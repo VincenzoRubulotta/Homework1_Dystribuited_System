@@ -1,1 +1,28 @@
-./data_collector/credentials.json
+# --- 1. FILE SENSIBILI (FONDAMENTALE) ---
+# Ignora il file delle credenziali nello specifico
+data_collector/credentials.json
+# Ignora qualsiasi file con questo nome nel progetto (per sicurezza extra)
+credentials.json
+
+# --- 2. AMBIENTE VIRTUALE ---
+# Ignora la cartella dove hai installato le librerie (pesantissima e inutile su GitHub)
+.venv/
+venv/
+env/
+
+# --- 3. FILE TEMPORANEI PYTHON ---
+# Cache create automaticamente da Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- 4. FILE DI SISTEMA E IDE ---
+# File inutili creati dal Mac
+.DS_Store
+# Configurazioni locali di VS Code
+.vscode/
+
+# --- 5. Dati dei Database (Se salvati in locale) ---
+# Ignora cartelle dati se mai dovessi estrarle dai volumi
+postgres_data/
+pgdata/

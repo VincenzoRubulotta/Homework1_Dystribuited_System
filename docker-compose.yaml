@@ -1,7 +1,38 @@
 version: '3.8'
 
+networks:
+  service_net:
+    driver: bridge
+  user_db_net:
+    driver: bridge
+    internal: true 
+  data_db_net:
+    driver: bridge
+    internal: true
+
+    
+
 services:
 
+
+  api_gateway:
+    build:
+      context: ./api_gateway
+      dockerfile: Dockerfile
+    container_name: api_gateway
+    environment:
+      # Definisce dove trovare i servizi gRPC nella rete interna
+      USER_MANAGER_ADDRESS: user_manager:50051
+      DATA_COLLECTOR_ADDRESS: data_collector:50052
+    ports:
+      - "8000:8000" # Espone la porta HTTP standard per Postman
+    networks:
+      - service_net # Fondamentale: deve vedere UM e DC
+    depends_on:
+      user_manager:
+        condition: service_started
+      data_collector:
+        condition: service_started
   db:
     image: postgres:14-alpine 
     container_name: db_user
@@ -10,10 +41,11 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: userdb
     volumes:
-      - db_user_data:/var/lib/postgresql/data
+      - db_user_data:/var/lib/postgresql/data 
     expose: 
       - 5432
-
+    networks:
+      - user_db_net 
     healthcheck: 
         test: ["CMD-SHELL", "pg_isready -U user -d userdb"]
         interval: 5s
@@ -33,6 +65,9 @@ services:
       LISTEN_PORT: 50051
     ports:
       - "50051:50051"
+    networks:
+      - user_db_net 
+      - service_net 
     depends_on:
       db:
         condition: service_healthy
@@ -48,6 +83,8 @@ services:
       - collector_db_data:/var/lib/postgresql/data
     expose:
       - 5432 
+    networks:
+      - data_db_net 
     healthcheck: 
         test: ["CMD-SHELL", "pg_isready -U collector_user -d collector_db"]
         interval: 5s
@@ -60,7 +97,6 @@ services:
       dockerfile: Dockerfile
     container_name: data_collector
     environment:
-  
       DB_HOST: db_collector
       POSTGRES_DB: collector_db
       POSTGRES_USER: collector_user
@@ -71,11 +107,15 @@ services:
       OPENSKY_CREDS_PATH: /app/credentials.json 
     ports:
       - "50052:50052" 
+    networks:
+      - data_db_net 
+      - service_net 
     depends_on:
       user_manager:
         condition: service_started 
       db_collector:
         condition: service_healthy 
+
 volumes:
-  db_user_data: {}
-  collector_db_data: {}
+  db_user_data: {}      
+  collector_db_data: {} 
