@@ -1,0 +1,328 @@
+{
+	"info": {
+		"_postman_id": "752be58c-8e5a-4848-b324-08b2e9ea0b00",
+		"name": "Homework 1 - Full System Test",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "50230329",
+		"_collection_link": "https://vincenzorubulotta-8494531.postman.co/workspace/Vincenzo-Rubulotta's-Workspace~f9c452e8-b692-4d27-8465-c1d3006d0f79/collection/50230329-752be58c-8e5a-4848-b324-08b2e9ea0b00?action=share&source=collection_link&creator=50230329"
+	},
+	"item": [
+		{
+			"name": "1. Register User",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							"const randomId = Math.floor(Math.random() * 100000);",
+							"const email = `user_${randomId}@test.com`;",
+							"pm.collectionVariables.set(\"test_email\", email);",
+							"console.log(\"Testing with email: \" + email);"
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"User Created\", function () {",
+							"    pm.response.to.have.status(200);",
+							"    pm.expect(pm.response.json().ok).to.be.true;",
+							"});"
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"email\": \"{{test_email}}\",\n    \"name\": \"Mario\",\n    \"surname\": \"Rossi\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8000/register",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"register"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "2. Check User Exists",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"User Exists\", function () {",
+							"    pm.expect(pm.response.json().exists).to.be.true;",
+							"});"
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:8000/users/{{test_email}}",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"users",
+						"{{test_email}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "3. Register Interests",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Interests Added\", function () {",
+							"    pm.response.to.have.status(200);",
+							"    pm.expect(pm.response.json().ok).to.be.true;",
+							"});"
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"email\": \"{{test_email}}\",\n    \"airports\": [\"LIRF\", \"EGLL\"]\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8000/interests",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"interests"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "4. Get Flight Data",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Data Retrieved\", function () {",
+							"    pm.response.to.have.status(200);",
+							"    pm.expect(pm.response.json().success).to.be.true; ",
+							"});"
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:8000/flights?email={{test_email}}&airport=LIRF",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"flights"
+					],
+					"query": [
+						{
+							"key": "email",
+							"value": "{{test_email}}"
+						},
+						{
+							"key": "airport",
+							"value": "LIRF"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "5. Get Statistics",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Statistics Retrieved\", function () {",
+							"    pm.response.to.have.status(200);",
+							"    pm.expect(pm.response.json().success).to.be.true;",
+							"    // Verifica che ci siano i campi delle medie",
+							"    pm.expect(pm.response.json()).to.have.property('avg_arrivals');",
+							"});"
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:8000/statistics?email={{test_email}}&airport=LIRF&days=7",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"statistics"
+					],
+					"query": [
+						{
+							"key": "email",
+							"value": "{{test_email}}"
+						},
+						{
+							"key": "airport",
+							"value": "LIRF"
+						},
+						{
+							"key": "days",
+							"value": "7"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "6. Delete User",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"User Deleted\", function () {",
+							"    pm.response.to.have.status(200);",
+							"    pm.expect(pm.response.json().ok).to.be.true;",
+							"});"
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
+				}
+			],
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:8000/users/{{test_email}}",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"users",
+						"{{test_email}}"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"requests": {},
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"requests": {},
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "test_email",
+			"value": ""
+		}
+	]
+}
