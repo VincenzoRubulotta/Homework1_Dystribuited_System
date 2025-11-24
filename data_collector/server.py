@@ -39,6 +39,55 @@ class DataCollectorServicer(dc_pb2_grpc.DataCollectorServicer):
 
         self._start_cyclic_monitoring() 
 
+    def GetStatistics(self, request, context):
+       user_email = request.user_email
+       airport_icao = request.airport_icao
+       days = request.days
+
+       if days <= 0:
+           context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+           return dc_pb2.StatisticsResponse(success =False, message="Il numero di giorni deve essere positivo.")
+       if not airport_icao:
+           context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+           return dc_pb2.StatisticsResponse(success =False, message="Codice aeroporto mancante nella richiesta.")
+       if not self._check_user_exists(user_email):
+           context.set_code(grpc.StatusCode.NOT_FOUND)
+           return dc_pb2.StatisticsResponse(success=False, message="Utente non trovato nell'User Manager.")
+       
+       db = self.SessionLocal()
+       try:
+           seconds_back = days * 86400
+           start_timestamp = int(time.time()) - seconds_back
+
+           count_arrivals = db.query(func.count(FlightData.id))\
+                                .filter(FlightData.airport_icao_ref == airport_icao)\
+                                .filter(FlightData.flight_type == "arrival")\
+                                .filter(FlightData.last_seen_time >= start_timestamp)\
+                                .scalar()
+            
+           count_departures = db.query(func.count(FlightData.id))\
+                                .filter(FlightData.airport_icao_ref == airport_icao)\
+                                .filter(FlightData.flight_type == "departure")\
+                                .filter(FlightData.last_seen_time >= start_timestamp)\
+                                .scalar()
+           
+           avg_arr = count_arrivals / days
+           avg_dep = count_departures / days
+
+           return dc_pb2.StatisticsResponse(
+               success=True,
+               message=f"Statistiche per {airport_icao} negli ultimi {days} giorni.",
+               avg_arrivals = avg_arr,
+               avg_departures = avg_dep
+           )
+           
+       except Exception as e:
+            print(f"ERRORE durante il calcolo delle statistiche: {e}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            return dc_pb2.StatisticsResponse(success=False, message="Errore interno durante il calcolo delle statistiche.") 
+       finally:
+            db.close()
+              
     def _get_opensky_token(self):
         try:
         
@@ -166,16 +215,25 @@ class DataCollectorServicer(dc_pb2_grpc.DataCollectorServicer):
                 
             airport_icao = request.airport_icao[0]
 
+            request_type = request.request_type
+
             if not self._check_user_exists(user_email):
                 context.set_code(grpc.StatusCode.NOT_FOUND)
                 return dc_pb2.HistoricalDataResponse(success=False, message="Utente non trovato nell'User Manager.")
             
             db = self.SessionLocal()
 
-            latest_flight_data = db.query(FlightData) \
-                                .filter(FlightData.airport_icao_ref == airport_icao) \
-                                .order_by(FlightData.last_seen_time.desc()) \
-                                .first()
+            def build_query():
+                query = db.query(FlightData).filter(FlightData.airport_icao_ref == airport_icao)
+                if request_type == dc_pb2.ARRIVAL:
+                    query = query.filter(FlightData.flight_type == "arrival")
+                elif request_type == dc_pb2.DEPARTURE:
+                    query = query.filter(FlightData.flight_type == "departure")
+                
+                return query.order_by(FlightData.last_seen_time.desc())
+            
+
+            latest_flight_data = build_query().first()
             
             if latest_flight_data:
                 return self._map_to_flight_response(latest_flight_data) 
@@ -185,14 +243,26 @@ class DataCollectorServicer(dc_pb2_grpc.DataCollectorServicer):
             
             fetched_data = self._fetch_flight_data(airport_icao, begin_time, end_time)
 
-            if fetched_data.get("arrivals") or fetched_data.get("departures"):
+            has_data = False
+            if fetched_data.get("arrivals"):
                 self._save_fetched_data(airport_icao, fetched_data["arrivals"], "arrival", db)
+                has_data = True
+            if(fetched_data.get("departures")):
                 self._save_fetched_data(airport_icao, fetched_data["departures"], "departure", db)
+                has_data = True
                 
                 latest_flight_data = db.query(FlightData).filter(FlightData.airport_icao_ref == airport_icao).first()
                 
+            if has_data:
+                latest_flight_data = build_query().first()
+
                 if latest_flight_data:
                     return self._map_to_flight_response(latest_flight_data)
+            
+            type_str = "voli"
+            if request_type == dc_pb2.ARRIVAL: type_str = "arrivi"
+            if request_type == dc_pb2.DEPARTURE: type_str = "partenze"
+
             return dc_pb2.HistoricalDataResponse(success=False, 
                                                 message=f"Nessun volo attivo trovato dall'API OpenSky per {airport_icao}.")
                 
