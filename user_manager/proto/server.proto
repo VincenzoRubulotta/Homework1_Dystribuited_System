@@ -4,9 +4,10 @@ package usermanager;
 
 
 message UserData {
-    string email = 1;
-    string name = 2;
-    string surname = 3;
+    string request_id = 1;
+    string email = 2;
+    string name = 3;
+    string surname = 4;
   }
   
   message UserIdentifier {

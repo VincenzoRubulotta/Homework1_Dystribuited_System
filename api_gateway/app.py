@@ -3,6 +3,7 @@ from flask import Flask, request, jsonify
 import grpc
 import os
 import sys
+import uuid
 
 import user_pb2
 import user_pb2_grpc
@@ -45,9 +46,15 @@ def check_user(email):
 @app.route('/register', methods=['POST'])
 def register_user():
     data = request.json
+
+    req_id = data.get('request_id')
+
+    if not req_id:
+        req_id = str(uuid.uuid4())
     try:
         stub = get_um_stub()
         user_req = user_pb2.UserData(
+            request_id=req_id,
             email=data.get('email'),
             name=data.get('name'),
             surname=data.get('surname', '')
