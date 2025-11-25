@@ -1,4 +1,4 @@
-# Homework 1 - Sistema di Monitoraggio Distribuito Voli Aerei
+# Homework 1 
 
 **Autore:** Vincenzo Rubulotta
 **Data:** Novembre 2025
