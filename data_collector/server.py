@@ -356,7 +356,6 @@ class DataCollectorServicer(dc_pb2_grpc.DataCollectorServicer):
 
 
     def _run_monitoring_loop(self):
-        """Il loop principale del monitoraggio ciclico."""
         time.sleep(5) 
         print(f"Monitoraggio avviato. Intervallo: {MONITOR_INTERVAL_SECONDS} secondi.")
 

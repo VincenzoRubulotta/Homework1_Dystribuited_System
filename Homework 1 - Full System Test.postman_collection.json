@@ -29,7 +29,7 @@
 					"script": {
 						"exec": [
 							"pm.test(\"User Created\", function () {",
-							"    pm.response.to.have.status(200);",
+							"    pm.response.to.have.status(201);",
 							"    pm.expect(pm.response.json().ok).to.be.true;",
 							"});"
 						],
@@ -44,7 +44,7 @@
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"email\": \"{{test_email}}\",\n    \"name\": \"Mario\",\n    \"surname\": \"Rossi\"\n}",
+					"raw": "{\n    \"request_id\" : \"{{$guid}}\",\n    \"email\": \"{{test_email}}\",\n    \"name\": \"Mario\",\n    \"surname\": \"Rossi\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"

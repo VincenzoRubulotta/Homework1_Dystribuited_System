@@ -4,6 +4,7 @@ import grpc
 import os
 import sys
 import uuid
+import traceback
 
 import user_pb2
 import user_pb2_grpc
@@ -23,34 +24,13 @@ def get_dc_stub():
     channel = grpc.insecure_channel(DC_HOST)
     return data_collector_pb2_grpc.DataCollectorStub(channel)
 
-@app.route('/users/<email>', methods=['DELETE'])
-def delete_user(email):
-    try:
-        stub = get_um_stub()
-        req = user_pb2.UserIdentifier(email=email)
-        response = stub.DeleteUser(req)
-        return jsonify({'ok': response.ok, 'message': response.message})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-    
-@app.route('/users/<email>', methods=['GET'])
-def check_user(email):
-    try:
-        stub = get_um_stub()
-        req = user_pb2.UserIdentifier(email=email)
-        response = stub.CheckUserExists(req)
-        return jsonify({'exists': response.exists})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-    
 @app.route('/register', methods=['POST'])
 def register_user():
     data = request.json
-
     req_id = data.get('request_id')
-
     if not req_id:
         req_id = str(uuid.uuid4())
+
     try:
         stub = get_um_stub()
         user_req = user_pb2.UserData(
@@ -60,7 +40,63 @@ def register_user():
             surname=data.get('surname', '')
         )
         response = stub.RegisterUser(user_req)
-        return jsonify({'ok': response.ok, 'message': response.message})
+        
+        if response.ok:
+            return jsonify({'ok': True, 'message': response.message}), 201
+        else:
+            return jsonify({'ok': False, 'message': response.message}), 409
+            
+    except grpc.RpcError as e:
+        return jsonify({'error': 'User Manager non disponibile'}), 503
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/users/<email>', methods=['DELETE'])
+def delete_user(email):
+    try:
+        stub = get_um_stub()
+        req = user_pb2.UserIdentifier(email=email)
+        response = stub.DeleteUser(req)
+        
+        if response.ok:
+            return jsonify({'ok': True, 'message': response.message}), 200
+        else:
+            return jsonify({'ok': False, 'message': response.message}), 404
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
+@app.route('/users/<email>', methods=['GET'])
+def check_user(email):
+    try:
+        stub = get_um_stub()
+        req = user_pb2.UserIdentifier(email=email)
+        response = stub.CheckUserExists(req)
+        return jsonify({'exists': response.exists}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/interests', methods=['POST'])
+def register_interests():
+    data = request.json
+    try:
+        stub = get_dc_stub()
+        req = data_collector_pb2.InterestRequest(
+            user_email=data.get('email'),
+            airport_icao=data.get('airports') 
+        )
+        response = stub.RegisterInterest(req)
+        
+        if response.ok:
+            return jsonify({'ok': True, 'message': response.message}), 200
+        else:
+            return jsonify({'ok': False, 'message': response.message}), 404
+            
+    except grpc.RpcError as e:
+        if e.code() == grpc.StatusCode.NOT_FOUND:
+             return jsonify({'error': 'Utente non trovato'}), 404
+        return jsonify({'error': str(e)}), 500
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -72,47 +108,56 @@ def get_flights():
         stub = get_dc_stub()
         req = data_collector_pb2.InterestRequest(
             user_email=email,
-            airport_icao=[airport],
-            request_type= 0
+            airport_icao=[airport], 
+            request_type=0 
         )
+        
         response = stub.GetHistoricalData(req)
+        
         flights = []
-        for f in response.flights:
-            flights.append({
-                'icao24': f.icao24,
-                'callsign': f.callsign,
-                'last_seen': f.last_seen
-            })
+        if hasattr(response, 'flights'):
+            for f in response.flights:
+                est_arr = getattr(f, 'est_arrival_airport', '')
+                flights.append({
+                    'icao24': getattr(f, 'icao24', 'N/A'),
+                    'callsign': getattr(f, 'callsign', 'N/A'),
+                    'last_seen': getattr(f, 'last_seen', 0),
+                    'type': 'arrival' if est_arr == airport else 'departure'
+                })
+        
+        if response.success:
+            return jsonify({
+                'success': True,
+                'message': response.message,
+                'flights': flights
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'message': response.message,
+                'flights': []
+            }), 404
+
+    except grpc.RpcError as e:
+        code = e.code()
+        if code == grpc.StatusCode.NOT_FOUND:
+            return jsonify({'error': 'Utente non trovato'}), 404
+        elif code == grpc.StatusCode.INVALID_ARGUMENT:
+            return jsonify({'error': 'Dati mancanti o non validi'}), 400
+        elif code == grpc.StatusCode.UNAVAILABLE:
+            return jsonify({'error': 'Data Collector non disponibile'}), 503
+        else:
+            return jsonify({'error': str(e)}), 500
             
-        return jsonify({
-            'success': response.success,
-            'message': response.message,
-            'flights': flights
-        })
     except Exception as e:
-        import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
-  
-@app.route('/interests', methods=['POST'])
-def register_interests():
-    data = request.json
-    try:
-        stub = get_dc_stub()
-        req = data_collector_pb2.InterestRequest(
-            user_email=data.get('email'),
-            airport_icao=data.get('airports') # Assicurati di passare una lista
-        )
-        response = stub.RegisterInterest(req)
-        return jsonify({'ok': response.ok, 'message': response.message})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-    
+
 @app.route('/statistics', methods=['GET'])
 def get_statistics():
     email = request.args.get('email')
     airport = request.args.get('airport')
-    days = int(request.args.get('days', 7)) # Default 7 giorni
+    days = int(request.args.get('days', 7)) 
     
     try:
         stub = get_dc_stub()
@@ -122,12 +167,24 @@ def get_statistics():
             days=days
         )
         response = stub.GetStatistics(req)
-        return jsonify({
-            'success': response.success,
-            'message': response.message,
-            'avg_arrivals': response.avg_arrivals,
-            'avg_departures': response.avg_departures
-        })
+        
+        if response.success:
+            return jsonify({
+                'success': True,
+                'message': response.message,
+                'avg_arrivals': getattr(response, 'avg_arrivals', 0.0),
+                'avg_departures': getattr(response, 'avg_departures', 0.0)
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'message': response.message
+            }), 404
+
+    except grpc.RpcError as e:
+        if e.code() == grpc.StatusCode.NOT_FOUND:
+            return jsonify({'error': 'Utente non trovato'}), 404
+        return jsonify({'error': str(e)}), 500
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
