@@ -21,13 +21,12 @@ services:
       dockerfile: Dockerfile
     container_name: api_gateway
     environment:
-      # Definisce dove trovare i servizi gRPC nella rete interna
       USER_MANAGER_ADDRESS: user_manager:50051
       DATA_COLLECTOR_ADDRESS: data_collector:50052
     ports:
-      - "8000:8000" # Espone la porta HTTP standard per Postman
+      - "8000:8000" 
     networks:
-      - service_net # Fondamentale: deve vedere UM e DC
+      - service_net
     depends_on:
       user_manager:
         condition: service_started
