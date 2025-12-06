@@ -7,6 +7,8 @@ import json
 import requests
 from requests.exceptions import HTTPError, ConnectionError, Timeout
 import threading
+from confluent_kafka import Producer
+import pybreaker
 from concurrent import futures
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func
@@ -21,7 +23,7 @@ UM_ADDRESS = os.getenv("USER_MANAGER_ADDRESS", "user_manager:50051")
 OPENSKY_CREDENTIALS_PATH = os.getenv("OPENSKY_CREDS_PATH", "credentials.json")
 LISTEN_PORT = int(os.getenv("LISTEN_PORT", 50052))
 MONITOR_INTERVAL_SECONDS = int(os.getenv("MONITOR_INTERVAL", 12 * 3600)) # Default 12 ore
-
+open_sky_breaker = pybreaker.CircuitBreaker(fail_max = 3, reset_timeout = 60)
 
 class DataCollectorServicer(dc_pb2_grpc.DataCollectorServicer):
     
@@ -36,7 +38,15 @@ class DataCollectorServicer(dc_pb2_grpc.DataCollectorServicer):
         self.opensky_token = self._get_opensky_token()
         if not self.opensky_token:
             print("AVVISO: Impossibile ottenere il token OpenSky. Il monitoraggio ciclico fallirà.")
-
+        
+        conf = {'bootstrap.servers': os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"),
+                'client.id': 'data_collector_service'}
+        try:
+            self.kafka_producer = Producer(conf)
+            print("Connessione al cluster Kafka stabilita.")
+        except Exception as e:
+            print(f"ERRORE connessione Kafka: {e}")
+            self.kafka_producer = None
         self._start_cyclic_monitoring() 
 
     def GetStatistics(self, request, context):
@@ -326,7 +336,7 @@ class DataCollectorServicer(dc_pb2_grpc.DataCollectorServicer):
         db.commit()
         return saved_count
 
-
+    @open_sky_breaker
     def _fetch_flight_data(self, icao, begin, end):
         if not self.opensky_token:
             raise Exception("Token OpenSky non disponibile.")
@@ -381,6 +391,19 @@ class DataCollectorServicer(dc_pb2_grpc.DataCollectorServicer):
                             departures_count = self._save_fetched_data(icao, flight_data["departures"], "departure", db)
                             
                             print(f"-> {icao}: Salvati {arrivals_count} arrivi e {departures_count} partenze.")
+
+                            if self.kafka_producer:
+
+                                message_payload = {
+                                    "airport_icao": icao,
+                                    "timestamp": int(time.time()),
+                                    "arrivals_count": len(flight_data.get('arrivals', [])),
+                                    "departures_count": len(flight_data.get('departures', []))
+                                }
+                                
+                                self.kafka_producer.produce('to-allert-system',key=icao, value=json.dumps(message_payload))
+                                self.producer.flush()
+                                print(f"Messaggio Kafka inviato per {icao}.")
                             
                         except requests.HTTPError as he:
                              print(f"ERRORE HTTP (OpenSky) per {icao}: {he.response.status_code} - {he.response.text}")
