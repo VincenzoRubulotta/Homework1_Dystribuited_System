@@ -36,6 +36,8 @@ message InterestRequest {
     string user_email = 1;
     repeated string airport_icao = 2; 
     FlightDataType request_type = 3;
+    int32 high_value = 4;
+    int32 low_value = 5;
 }
 
 message FlightInfo {
