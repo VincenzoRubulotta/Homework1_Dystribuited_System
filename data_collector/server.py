@@ -7,11 +7,13 @@ import json
 import requests
 from requests.exceptions import HTTPError, ConnectionError, Timeout
 import threading
+from flask import Flask, request, jsonify
 from confluent_kafka import Producer
 import pybreaker
 from concurrent import futures
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func
+
 from collector_db import init_db_connection, get_db_session
 from models import UserInterest, FlightData 
 import data_collector_pb2 as dc_pb2
@@ -21,9 +23,22 @@ import user_pb2_grpc as user_pb2_grpc
 
 UM_ADDRESS = os.getenv("USER_MANAGER_ADDRESS", "user_manager:50051") 
 OPENSKY_CREDENTIALS_PATH = os.getenv("OPENSKY_CREDS_PATH", "credentials.json")
-LISTEN_PORT = int(os.getenv("LISTEN_PORT", 50052))
+GRPC_LISTEN_PORT = int(os.getenv("LISTEN_PORT", 50052))
+HTTP_LISTEN_PORT = int(os.getenv("HTTP_LISTEN_PORT", 5001))
 MONITOR_INTERVAL_SECONDS = int(os.getenv("MONITOR_INTERVAL", 12 * 3600)) # Default 12 ore
 open_sky_breaker = pybreaker.CircuitBreaker(fail_max = 3, reset_timeout = 60)
+
+
+class GrpcContextAdapter:
+    def __init__(self):
+        self.code = grpc.StatusCode.OK
+        self.details = ""
+    
+    def set_code(self, code):
+        self.code = code
+    
+    def set_details(self, details):
+        self.details = details
 
 class DataCollectorServicer(dc_pb2_grpc.DataCollectorServicer):
     
@@ -48,6 +63,14 @@ class DataCollectorServicer(dc_pb2_grpc.DataCollectorServicer):
             print(f"ERRORE connessione Kafka: {e}")
             self.kafka_producer = None
         self._start_cyclic_monitoring() 
+
+    def _get_users_interested_in_airport(self,db, airport_icao):
+        try:
+            return db.query(UserInterest).filter(UserInterest.airport_icao == airport_icao).all()
+        except Exception as e:
+            print(f"Errore lettura interessi utenti per {airport_icao}: {e}")
+            return []
+        
 
     def GetStatistics(self, request, context):
        user_email = request.user_email
@@ -390,21 +413,29 @@ class DataCollectorServicer(dc_pb2_grpc.DataCollectorServicer):
                             arrivals_count = self._save_fetched_data(icao, flight_data["arrivals"], "arrival", db)
                             departures_count = self._save_fetched_data(icao, flight_data["departures"], "departure", db)
                             
+                            current_arrivals = len(flight_data.get('arrivals', []))
+                            current_departures = len(flight_data.get('departures', []))
+                            total_flights = current_arrivals + current_departures
+
                             print(f"-> {icao}: Salvati {arrivals_count} arrivi e {departures_count} partenze.")
 
                             if self.kafka_producer:
-
-                                message_payload = {
-                                    "airport_icao": icao,
-                                    "timestamp": int(time.time()),
-                                    "arrivals_count": len(flight_data.get('arrivals', [])),
-                                    "departures_count": len(flight_data.get('departures', []))
-                                }
+                                interested_users = self._get_users_interested_in_airport(db, icao)
+ 
+                                for user_interest in interested_users:
+                                    message_payload = {
+                                        "airport_icao": icao,
+                                        "timestamp": int(time.time()),
+                                        "current_flights": total_flights,
+                                        "email": user_interest.user_email,
+                                        "min_threshold": user_interest.low_value, 
+                                        "max_threshold": user_interest.high_value
+                                    }
                                 
-                                self.kafka_producer.produce('to-allert-system',key=icao, value=json.dumps(message_payload))
+                                    self.kafka_producer.produce('to-allert-system',key=user_interest.user_email, value=json.dumps(message_payload))
                                 self.producer.flush()
-                                print(f"Messaggio Kafka inviato per {icao}.")
-                            
+                                print(f"   >>> Aggiornamento inviato a {len(interested_users)} utenti per {icao}.")
+                                
                         except requests.HTTPError as he:
                              print(f"ERRORE HTTP (OpenSky) per {icao}: {he.response.status_code} - {he.response.text}")
                         except Exception as e:
@@ -424,14 +455,82 @@ class DataCollectorServicer(dc_pb2_grpc.DataCollectorServicer):
             else:
                  print(f"--- Ciclo completato. Tempo elapsed: {elapsed:.2f}s (nessuna attesa) ---")
 
+app = Flask(__name__)
+servicer = None
 
-def serve():
+@app.route('/statistics', methods=['GET'])
+def http_statistics():
+    req = dc_pb2.StatisticsRequest(
+        user_email=request.args.get('user_email', ''),
+        airport_icao=request.args.get('airport_icao', ''),
+        days=int(request.args.get('days', '0'))
+    )
+
+    ctx = GrpcContextAdapter()
+    resp = servicer.GetStatistics(req, ctx)
+
+    if ctx.code != grpc.StatusCode.OK:
+        return jsonify({"success": False, "message": resp.message}), 400
+    
+    return jsonify({
+        "success": resp.success,
+        "avg_arrivals": resp.avg_arrivals,
+        "avg_departures": resp.avg_departures,
+    }), 200
+
+@app.route('/interest', methods=['POST'])
+def http_interest():
+    data = request.json
+    req = dc_pb2.InterestRequest(
+        user_email=data.get('user_email', ''),
+        airport_icao=data.get('airport_icao', []),
+        high_value=data.get('high_value', 0),
+        low_value=data.get('low_value', 0)
+    )
+
+    ctx = GrpcContextAdapter()
+    resp = servicer.RegisterInterest(req, ctx)
+
+    status = 200 if resp.ok else 400
+    return jsonify({"ok": resp.ok, "message": resp.message}), status
+
+@app.route('/history', methods=['GET'])
+def http_history():
+    req = dc_pb2.HistoricalDataRequest(
+        user_email=request.args.get('user_email', ''),
+        airport_icao=[request.args.get('airport_icao', '')] if request.args.get('airport_icao', '') else [],
+        request_type=int(request.args.get('request_type', '0'))
+    )
+
+    ctx = GrpcContextAdapter()
+    resp = servicer.GetHistoricalData(req, ctx)
+
+    if not resp.success:
+        return jsonify({"success": False, "message": resp.message}), 404
+    
+    flights_json = []
+    for flight in resp.flights:
+        flights_json.append({
+            "icao24": flight.icao24,
+            "callsign": flight.callsign,
+            "est_departure_airport": flight.est_departure_airport,
+            "est_arrival_airport": flight.est_arrival_airport,
+            "first_seen": flight.first_seen,
+            "last_seen": flight.last_seen
+        })
+    
+    return jsonify({"success": True, "message": resp.message, "flights": flights_json}), 200
+
+def run_http():
+    app.run(host='0.0.0.0', port=HTTP_LISTEN_PORT, debug=False, use_reloader=False)
+
+def serve_grpc():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     dc_pb2_grpc.add_DataCollectorServicer_to_server(
-        DataCollectorServicer(), server)
-    server.add_insecure_port(f'[::]:{LISTEN_PORT}')
+        servicer, server)
+    server.add_insecure_port(f'[::]:{GRPC_LISTEN_PORT}')
     server.start()
-    print(f"Data Collector avviato sulla porta {LISTEN_PORT}...")
+    print(f"Data Collector avviato sulla porta {GRPC_LISTEN_PORT}...")
     try:
         while True:
             server.wait_for_termination()
@@ -439,13 +538,10 @@ def serve():
         server.stop(0)
 
 if __name__ == '__main__':
-    try:
-        time.sleep(5) 
-        serve()
-    except Exception as e:
-        print("\n" + "="*80)
-        print("!! ERRORE CRITICO: Il server gRPC non è riuscito ad avviarsi !!")
-        print(f"Causa: {type(e).__name__}: {str(e)}")
-        print("="*80)
-        traceback.print_exc(file=sys.stdout)
-        sys.exit(1) 
+    time.sleep(5)
+    servicer = DataCollectorServicer()
+
+    t = threading.Thread(target=run_http, daemon=True)
+    t.start()
+
+    serve_grpc()
