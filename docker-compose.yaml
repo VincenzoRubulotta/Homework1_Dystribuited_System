@@ -1,4 +1,3 @@
-version: '3.8'
 
 networks:
   service_net:
@@ -130,8 +129,10 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       GRPC_PORT: ${DC_PORT:-50052}
       HTTP_PORT: 5001
-      MONITORING_INTERVAL: 43200
-      OPENSKY_CREDS_PATH: /app/opensky_creds.json
+      MONITORING_INTERVAL: 200
+      MONITORING_INTERVAL_HISTORICAL: 43200
+      OPENSKY_CREDS_PATH: /app/credentials.json
+
     expose:
       - ${DC_PORT:-50052}
       - 5001

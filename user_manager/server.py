@@ -25,7 +25,7 @@ app = Flask(__name__)
 def http_health():
     return jsonify({"status": "ok"}), 200
 
-@app.route('/register,', methods=['POST'])
+@app.route('/register', methods=['POST'])
 def http_register():
     data = request.json
     email = data.get('email')

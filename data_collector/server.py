@@ -25,7 +25,8 @@ UM_ADDRESS = os.getenv("USER_MANAGER_ADDRESS", "user_manager:50051")
 OPENSKY_CREDENTIALS_PATH = os.getenv("OPENSKY_CREDS_PATH", "credentials.json")
 GRPC_LISTEN_PORT = int(os.getenv("LISTEN_PORT", 50052))
 HTTP_LISTEN_PORT = int(os.getenv("HTTP_LISTEN_PORT", 5001))
-MONITOR_INTERVAL_SECONDS = int(os.getenv("MONITOR_INTERVAL", 12 * 3600)) # Default 12 ore
+MONITOR_INTERVAL_SECONDS = int(os.getenv("MONITOR_INTERVAL", 200)) 
+MONITOR_INTERVAL_SECONDS_HISTORICAL = int(os.getenv("MONITOR_INTERVAL_HISTORICAL", 12 * 3600))
 open_sky_breaker = pybreaker.CircuitBreaker(fail_max = 3, reset_timeout = 60)
 
 
@@ -272,7 +273,7 @@ class DataCollectorServicer(dc_pb2_grpc.DataCollectorServicer):
                 return self._map_to_flight_response(latest_flight_data) 
                 
             end_time = int(time.time())
-            begin_time = end_time - MONITOR_INTERVAL_SECONDS
+            begin_time = end_time - MONITOR_INTERVAL_SECONDS_HISTORICAL
             
             fetched_data = self._fetch_flight_data(airport_icao, begin_time, end_time)
 
@@ -433,7 +434,7 @@ class DataCollectorServicer(dc_pb2_grpc.DataCollectorServicer):
                                     }
                                 
                                     self.kafka_producer.produce('to-allert-system',key=user_interest.user_email, value=json.dumps(message_payload))
-                                self.producer.flush()
+                                self.kafka_producer.flush()
                                 print(f"   >>> Aggiornamento inviato a {len(interested_users)} utenti per {icao}.")
                                 
                         except requests.HTTPError as he:
@@ -478,7 +479,7 @@ def http_statistics():
         "avg_departures": resp.avg_departures,
     }), 200
 
-@app.route('/interest', methods=['POST'])
+@app.route('/interests', methods=['POST'])
 def http_interest():
     data = request.json
     req = dc_pb2.InterestRequest(
@@ -496,7 +497,7 @@ def http_interest():
 
 @app.route('/history', methods=['GET'])
 def http_history():
-    req = dc_pb2.HistoricalDataRequest(
+    req = dc_pb2.InterestRequest(
         user_email=request.args.get('user_email', ''),
         airport_icao=[request.args.get('airport_icao', '')] if request.args.get('airport_icao', '') else [],
         request_type=int(request.args.get('request_type', '0'))
