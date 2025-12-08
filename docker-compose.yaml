@@ -22,6 +22,7 @@ services:
       - service_net
 
   kafka:
+    container_name: kafka
     image: confluentinc/cp-kafka:7.4.0
     depends_on:
       - zookeeper
@@ -30,7 +31,7 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
@@ -38,22 +39,17 @@ services:
       - service_net
 
   api_gateway:
-    build:
-      context: ./api_gateway
-      dockerfile: Dockerfile
+    image: nginx:latest
     container_name: api_gateway
-    environment:
-      USER_MANAGER_ADDRESS: user_manager:${UM_PORT}
-      DATA_COLLECTOR_ADDRESS: data_collector:${DC_PORT}
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
     ports:
-      - "${GATEWAY_PORT}:${GATEWAY_PORT}" 
+      - "${API_GATEWAY_PORT}:80"
     networks:
       - service_net
     depends_on:
-      user_manager:
-        condition: service_started
-      data_collector:
-        condition: service_started
+      -  user_manager
+      -  data_collector
   db:
     image: postgres:14-alpine 
     container_name: db_user
@@ -83,15 +79,23 @@ services:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: userdb
-      LISTEN_PORT: ${UM_PORT}
-    ports:
-      - "${UM_PORT}:${UM_PORT}"
+      GRPC_PORT: ${UM_PORT:-50051}
+      HTTP_PORT: 5000
+    expose:
+      - ${UM_PORT:-50051}
+      - 5000
     networks:
       - user_db_net 
-      - service_net 
+      - service_net
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+        test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+        interval: 10s
+        timeout: 5s
+        retries: 5
+        start_period: 5s
 
   db_collector:
     image: postgres:14-alpine
@@ -122,21 +126,51 @@ services:
       POSTGRES_DB: collector_db
       POSTGRES_USER: collector_user
       POSTGRES_PASSWORD: collector_password
-      USER_MANAGER_ADDRESS: user_manager:${UM_PORT}
-      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      LISTEN_PORT: ${DC_PORT}
-      MONITOR_INTERVAL: 43200 
-      OPENSKY_CREDS_PATH: /app/credentials.json 
-    ports:
-      - "${DC_PORT}:${DC_PORT}" 
+      USER_MANAGER_ADDRESS: user_manager:${UM_PORT--50051}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      GRPC_PORT: ${DC_PORT:-50052}
+      HTTP_PORT: 5001
+      MONITORING_INTERVAL: 43200
+      OPENSKY_CREDS_PATH: /app/opensky_creds.json
+    expose:
+      - ${DC_PORT:-50052}
+      - 5001
     networks:
       - data_db_net 
-      - service_net 
+      - service_net
     depends_on:
-      user_manager:
-        condition: service_started 
       db_collector:
-        condition: service_healthy 
+        condition: service_healthy
+      user_manager:
+        condition: service_healthy
+
+  alert_system:
+    build:
+      context: ./alert_system
+      dockerfile: Dockerfile
+    container_name: alert_system
+    depends_on:
+      - kafka
+    networks:
+      - service_net
+    restart: on-failure
+  
+  notifier_system:
+    build: 
+      context: ./notifier_system
+      dockerfile: Dockerfile
+    container_name: notifier_system
+    depends_on:
+      - kafka
+    networks:
+      - service_net
+    restart: on-failure
+    environment:
+      - SMTP_SERVER=${SMTP_SERVER}
+      - SMTP_PORT=${SMTP_PORT}
+      - SENDER_EMAIL=${SENDER_EMAIL}
+      - SENDER_PASSWORD=${SENDER_PASSWORD}
+    
 
 volumes:
   db_user_data: {}      

@@ -4,6 +4,7 @@ data_collector/credentials.json
 # Ignora qualsiasi file con questo nome nel progetto (per sicurezza extra)
 credentials.json
 
+.env
 # --- 2. AMBIENTE VIRTUALE ---
 # Ignora la cartella dove hai installato le librerie (pesantissima e inutile su GitHub)
 .venv/
@@ -26,3 +27,4 @@ __pycache__/
 # Ignora cartelle dati se mai dovessi estrarle dai volumi
 postgres_data/
 pgdata/
+
