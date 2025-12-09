@@ -131,7 +131,6 @@ services:
       HTTP_PORT: 5001
       MONITORING_INTERVAL: 200
       MONITORING_INTERVAL_HISTORICAL: 43200
-      OPENSKY_CREDS_PATH: /app/credentials.json
 
     expose:
       - ${DC_PORT:-50052}
@@ -155,6 +154,8 @@ services:
     networks:
       - service_net
     restart: on-failure
+    environment:
+      - PYTHONBUFFERED=1
   
   notifier_system:
     build: 

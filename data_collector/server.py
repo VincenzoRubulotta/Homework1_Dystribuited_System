@@ -9,6 +9,7 @@ from requests.exceptions import HTTPError, ConnectionError, Timeout
 import threading
 from flask import Flask, request, jsonify
 from confluent_kafka import Producer
+from confluent_kafka.admin import AdminClient, NewTopic
 import pybreaker
 from concurrent import futures
 from sqlalchemy.exc import IntegrityError
@@ -26,7 +27,7 @@ OPENSKY_CREDENTIALS_PATH = os.getenv("OPENSKY_CREDS_PATH", "credentials.json")
 GRPC_LISTEN_PORT = int(os.getenv("LISTEN_PORT", 50052))
 HTTP_LISTEN_PORT = int(os.getenv("HTTP_LISTEN_PORT", 5001))
 MONITOR_INTERVAL_SECONDS = int(os.getenv("MONITOR_INTERVAL", 200)) 
-MONITOR_INTERVAL_SECONDS_HISTORICAL = int(os.getenv("MONITOR_INTERVAL_HISTORICAL", 12 * 3600))
+MONITOR_INTERVAL_SECONDS_HISTORICAL = int(os.getenv("MONITOR_INTERVAL_HISTORICAL", 8 * 3600))
 open_sky_breaker = pybreaker.CircuitBreaker(fail_max = 3, reset_timeout = 60)
 
 
@@ -55,6 +56,11 @@ class DataCollectorServicer(dc_pb2_grpc.DataCollectorServicer):
         if not self.opensky_token:
             print("AVVISO: Impossibile ottenere il token OpenSky. Il monitoraggio ciclico fallirà.")
         
+        self.kafka_broker = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
+        self.topic_name = "to-allert-system"
+
+        DataCollectorServicer.create_topic_if_missing(self.kafka_broker, self.topic_name)
+
         conf = {'bootstrap.servers': os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"),
                 'client.id': 'data_collector_service'}
         try:
@@ -63,7 +69,39 @@ class DataCollectorServicer(dc_pb2_grpc.DataCollectorServicer):
         except Exception as e:
             print(f"ERRORE connessione Kafka: {e}")
             self.kafka_producer = None
+
+        
         self._start_cyclic_monitoring() 
+
+    def create_topic_if_missing(broker, topic_name):
+       
+        print(f"Check esistenza topic '{topic_name}' su {broker}...")
+        admin_client = AdminClient({'bootstrap.servers': broker})
+
+        try:
+            
+            cluster_metadata = admin_client.list_topics(timeout=10)
+            
+            if topic_name in cluster_metadata.topics:
+                print(f"OK: Il topic '{topic_name}' esiste già.")
+                return
+
+           
+            print(f"CREAZIONE: Il topic '{topic_name}' non esiste. Lo creo ora.")
+            
+            new_topic = NewTopic(topic_name, num_partitions=1, replication_factor=1)
+            
+            futures = admin_client.create_topics([new_topic])
+            
+            for topic, future in futures.items():
+                try:
+                    future.result() 
+                    print(f"SUCCESS: Topic '{topic}' creato correttamente.")
+                except Exception as e:
+                    print(f"ERROR: Fallita creazione topic '{topic}': {e}")
+
+        except Exception as e:
+            print(f"WARNING: Errore connessione Admin Kafka: {e}")
 
     def _get_users_interested_in_airport(self,db, airport_icao):
         try:
@@ -195,7 +233,9 @@ class DataCollectorServicer(dc_pb2_grpc.DataCollectorServicer):
                 if icao: 
                     new_interests.append(UserInterest(
                         user_email=user_email, 
-                        airport_icao=icao
+                        airport_icao=icao, 
+                        high_value=request.high_value,
+                        low_value=request.low_value
                     ))
             
             db.add_all(new_interests)
