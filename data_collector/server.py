@@ -10,7 +10,7 @@ import threading
 from flask import Flask, request, jsonify
 from confluent_kafka import Producer
 from confluent_kafka.admin import AdminClient, NewTopic
-import pybreaker
+from circuit_breaker import CircuitBreaker, CircuitBreakerOpenException
 from concurrent import futures
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func
@@ -28,7 +28,7 @@ GRPC_LISTEN_PORT = int(os.getenv("LISTEN_PORT", 50052))
 HTTP_LISTEN_PORT = int(os.getenv("HTTP_LISTEN_PORT", 5001))
 MONITOR_INTERVAL_SECONDS = int(os.getenv("MONITOR_INTERVAL", 200)) 
 MONITOR_INTERVAL_SECONDS_HISTORICAL = int(os.getenv("MONITOR_INTERVAL_HISTORICAL", 8 * 3600))
-open_sky_breaker = pybreaker.CircuitBreaker(fail_max = 3, reset_timeout = 60)
+open_sky_breaker = CircuitBreaker(failure_threshold = 3, recovery_timeout = 60, expected_exception = Exception)
 
 
 class GrpcContextAdapter:
