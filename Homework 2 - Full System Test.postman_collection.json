@@ -1,7 +1,7 @@
 {
 	"info": {
 		"_postman_id": "752be58c-8e5a-4848-b324-08b2e9ea0b00",
-		"name": "Homework 1 - Full System Test",
+		"name": "Homework 2 - Full System Test",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
 		"_exporter_id": "50230329",
 		"_collection_link": "https://vincenzorubulotta-8494531.postman.co/workspace/Vincenzo-Rubulotta's-Workspace~f9c452e8-b692-4d27-8465-c1d3006d0f79/collection/50230329-752be58c-8e5a-4848-b324-08b2e9ea0b00?action=share&source=collection_link&creator=50230329"
@@ -52,16 +52,14 @@
 					}
 				},
 				"url": {
-					"raw": "http://127.0.0.1:8000/register",
+					"raw": "http://localhost:8000/users/register",
 					"protocol": "http",
 					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
+						"localhost"
 					],
 					"port": "8000",
 					"path": [
+						"users",
 						"register"
 					]
 				}
@@ -89,18 +87,21 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "http://127.0.0.1:8000/users/{{test_email}}",
+					"raw": "http://localhost:8000/users/exists?email={{test_email}}",
 					"protocol": "http",
 					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
+						"localhost"
 					],
 					"port": "8000",
 					"path": [
 						"users",
-						"{{test_email}}"
+						"exists"
+					],
+					"query": [
+						{
+							"key": "email",
+							"value": "{{test_email}}"
+						}
 					]
 				}
 			},
@@ -122,6 +123,17 @@
 						"packages": {},
 						"requests": {}
 					}
+				},
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript",
+						"packages": {},
+						"requests": {}
+					}
 				}
 			],
 			"request": {
@@ -129,7 +141,7 @@
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"email\": \"{{test_email}}\",\n    \"airports\": [\"LIRF\", \"EGLL\"]\n}",
+					"raw": "{\n    \"user_email\": \"{{test_email}}\",\n    \"airport_icao\": [\"LIMC\", \"EGLL\"],\n    \"high_value\": 200,\n    \"low_value\": 100\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -137,16 +149,14 @@
 					}
 				},
 				"url": {
-					"raw": "http://127.0.0.1:8000/interests",
+					"raw": "http://localhost:8000/collector/interests",
 					"protocol": "http",
 					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
+						"localhost"
 					],
 					"port": "8000",
 					"path": [
+						"collector",
 						"interests"
 					]
 				}
@@ -175,26 +185,28 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "http://127.0.0.1:8000/flights?email={{test_email}}&airport=LIRF",
+					"raw": "http://localhost:8000/collector/history?user_email={{test_email}}&airport_icao=LIMC&request_type=1",
 					"protocol": "http",
 					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
+						"localhost"
 					],
 					"port": "8000",
 					"path": [
-						"flights"
+						"collector",
+						"history"
 					],
 					"query": [
 						{
-							"key": "email",
+							"key": "user_email",
 							"value": "{{test_email}}"
 						},
 						{
-							"key": "airport",
-							"value": "LIRF"
+							"key": "airport_icao",
+							"value": "LIMC"
+						},
+						{
+							"key": "request_type",
+							"value": "1"
 						}
 					]
 				}
@@ -225,25 +237,23 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "http://127.0.0.1:8000/statistics?email={{test_email}}&airport=LIRF&days=7",
+					"raw": "http://localhost:8000/collector/statistics?user_email={{test_email}}&airport_icao=LIRF&days=7",
 					"protocol": "http",
 					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
+						"localhost"
 					],
 					"port": "8000",
 					"path": [
+						"collector",
 						"statistics"
 					],
 					"query": [
 						{
-							"key": "email",
+							"key": "user_email",
 							"value": "{{test_email}}"
 						},
 						{
-							"key": "airport",
+							"key": "airport_icao",
 							"value": "LIRF"
 						},
 						{
@@ -277,18 +287,21 @@
 				"method": "DELETE",
 				"header": [],
 				"url": {
-					"raw": "http://127.0.0.1:8000/users/{{test_email}}",
+					"raw": "http://localhost:8000/users/delete?email={{test_email}}",
 					"protocol": "http",
 					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
+						"localhost"
 					],
 					"port": "8000",
 					"path": [
 						"users",
-						"{{test_email}}"
+						"delete"
+					],
+					"query": [
+						{
+							"key": "email",
+							"value": "{{test_email}}"
+						}
 					]
 				}
 			},
