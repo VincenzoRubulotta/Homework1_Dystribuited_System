@@ -16,10 +16,10 @@ Il sistema è stato aggiornato sostituendo il Gateway applicativo con **Nginx** 
 | :--- | :--- | :--- | :--- | :--- |
 | **Nginx (Reverse Proxy)** | Entry point, Load Balancing e routing | **REST/HTTP** (Porta 80) | gRPC / HTTP | `service_net` |
 | **User Manager (UM)** | Gestione CRUD Utenti e persistenza | - | gRPC (Server) | `service_net`, `user_db_net` |
-| **Data Collector (DC)** | Logica Voli, API OpenSky, Circuit Breaker | - | gRPC (Server) / **Kafka** (Producer) | `service_net`, `data_db_net`, `kafka_net` |
-| **Alert System** | Elaborazione regole e trigger allarmi | - | **Kafka** (Producer & Consumer) | `kafka_net` |
-| **Notifier System** | Spedizione notifiche finali | - | **Kafka** (Consumer) | `kafka_net` |
-| **Kafka & Zookeeper** | Message Broker e coordinamento | - | TCP (9092) | `kafka_net` |
+| **Data Collector (DC)** | Logica Voli, API OpenSky, Circuit Breaker | - | gRPC (Server) / **Kafka** (Producer) | `service_net`, `data_db_net` |
+| **Alert System** | Elaborazione regole e trigger allarmi | - | **Kafka** (Producer & Consumer) | `service_net` |
+| **Notifier System** | Spedizione notifiche finali | - | **Kafka** (Consumer) | `service_net` |
+| **Kafka & Zookeeper** | Message Broker e coordinamento | - | TCP (9092) | `service_net` |
 | **PostgreSQL DBs** | Persistenza dati isolata | - | TCP (5432) | `user_db_net` / `data_db_net` |
 
 ### Scelte di Design Critiche
