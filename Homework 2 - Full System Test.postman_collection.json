@@ -52,12 +52,12 @@
 					}
 				},
 				"url": {
-					"raw": "http://localhost:8000/users/register",
-					"protocol": "http",
+					"raw": "https://localhost:443/users/register",
+					"protocol": "https",
 					"host": [
 						"localhost"
 					],
-					"port": "8000",
+					"port": "443",
 					"path": [
 						"users",
 						"register"
@@ -87,12 +87,12 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "http://localhost:8000/users/exists?email={{test_email}}",
-					"protocol": "http",
+					"raw": "https://localhost:443/users/exists?email={{test_email}}",
+					"protocol": "https",
 					"host": [
 						"localhost"
 					],
-					"port": "8000",
+					"port": "443",
 					"path": [
 						"users",
 						"exists"
@@ -149,12 +149,12 @@
 					}
 				},
 				"url": {
-					"raw": "http://localhost:8000/collector/interests",
-					"protocol": "http",
+					"raw": "https://localhost:443/collector/interests",
+					"protocol": "https",
 					"host": [
 						"localhost"
 					],
-					"port": "8000",
+					"port": "443",
 					"path": [
 						"collector",
 						"interests"
@@ -185,12 +185,12 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "http://localhost:8000/collector/history?user_email={{test_email}}&airport_icao=LIMC&request_type=1",
-					"protocol": "http",
+					"raw": "https://localhost:443/collector/history?user_email={{test_email}}&airport_icao=LIMC&request_type=1",
+					"protocol": "https",
 					"host": [
 						"localhost"
 					],
-					"port": "8000",
+					"port": "443",
 					"path": [
 						"collector",
 						"history"
@@ -237,12 +237,12 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "http://localhost:8000/collector/statistics?user_email={{test_email}}&airport_icao=LIRF&days=7",
-					"protocol": "http",
+					"raw": "https://localhost:443/collector/statistics?user_email={{test_email}}&airport_icao=LIRF&days=7",
+					"protocol": "https",
 					"host": [
 						"localhost"
 					],
-					"port": "8000",
+					"port": "443",
 					"path": [
 						"collector",
 						"statistics"
@@ -287,12 +287,12 @@
 				"method": "DELETE",
 				"header": [],
 				"url": {
-					"raw": "http://localhost:8000/users/delete?email={{test_email}}",
-					"protocol": "http",
+					"raw": "https://localhost:443/users/delete?email={{test_email}}",
+					"protocol": "https",
 					"host": [
 						"localhost"
 					],
-					"port": "8000",
+					"port": "443",
 					"path": [
 						"users",
 						"delete"

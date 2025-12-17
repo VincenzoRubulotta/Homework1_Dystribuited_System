@@ -4,6 +4,9 @@ data_collector/credentials.json
 # Ignora qualsiasi file con questo nome nel progetto (per sicurezza extra)
 credentials.json
 
+nginx-selfsigned.crt
+nginx-selfsigned.key
+certs/
 .env
 # --- 2. AMBIENTE VIRTUALE ---
 # Ignora la cartella dove hai installato le librerie (pesantissima e inutile su GitHub)
