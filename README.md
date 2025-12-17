@@ -14,7 +14,7 @@ Il sistema è stato aggiornato sostituendo il Gateway applicativo con **Nginx** 
 
 | Servizio | Ruolo | Protocollo Esterno | Protocollo Interno | Rete Docker |
 | :--- | :--- | :--- | :--- | :--- |
-| **Nginx (Reverse Proxy)** | Entry point, Load Balancing e routing | **REST/HTTP** (Porta 80) | gRPC / HTTP | `service_net` |
+| **Nginx (Reverse Proxy)** | Entry point, Load Balancing e routing | **REST/HTTPS** (Porta 443) | gRPC / HTTPS | `service_net` |
 | **User Manager (UM)** | Gestione CRUD Utenti e persistenza | - | gRPC (Server) | `service_net`, `user_db_net` |
 | **Data Collector (DC)** | Logica Voli, API OpenSky, Circuit Breaker | - | gRPC (Server) / **Kafka** (Producer) | `service_net`, `data_db_net` |
 | **Alert System** | Elaborazione regole e trigger allarmi | - | **Kafka** (Producer & Consumer) | `service_net` |
@@ -28,7 +28,7 @@ Il sistema è stato aggiornato sostituendo il Gateway applicativo con **Nginx** 
     * **Data Collector:** Agisce come Producer (per dati di volo).
     * **Alert System:** Consuma i dati di volo, verifica le soglie e Produce eventi di allarme.
     * **Notifier System:** Consuma gli eventi di allarme e gestisce l'invio della notifica tramite posta eletronica.
-2.  **Nginx come Reverse Proxy:** Sostituzione del precedente API Gateway Flask con Nginx per gestire l'ingresso del traffico HTTP e il routing verso i microservizi.
+2.  **Nginx come Reverse Proxy:** Sostituzione del precedente API Gateway Flask con Nginx per gestire l'ingresso del traffico HTTPS e il routing verso i microservizi.
 3.  **Fault Tolerance (Circuit Breaker):** Implementazione custom del pattern Circuit Breaker nel Data Collector per gestire i fallimenti delle chiamate verso API esterne (OpenSky), prevenendo il sovraccarico.
 4.  **Network Isolation:** Introduzione di una rete dedicata `kafka_net` per il traffico di messaggistica, oltre alle reti di servizio e database.
 
@@ -54,7 +54,7 @@ docker compose up -d --build
 
 
 3. Testing e Automazione (Postman)
-L'interfaccia pubblica del sistema è accessibile tramite Nginx (default port 80).
+L'interfaccia pubblica del sistema è accessibile tramite Nginx (port 443 SSL).
 
 3.1. Test Automatizzato
 
