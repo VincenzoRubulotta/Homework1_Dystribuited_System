@@ -45,6 +45,7 @@ Per avviare il progetto è necessario avere:
 * **Docker** e **Docker Compose** installati e attivi.
 * Il file **`credentials.json`** (con le credenziali OpenSky Network) posizionato in:
   `./data_collector/credentials.json`
+* Il file contenente la chiave e il file contenente il certificato per poter effettuare le chiamate https appositamente inseriti all'interno di una cartella `cert` posizionata all'interno della directory principale del progetto, i file devono essere denominati `nginx-selfsigned.crt`  e `nginx-selfsigned.key`
 
 ### 2.1. Avvio del Sistema
 L'intera infrastruttura (inclusi i container Kafka e Zookeeper) si avvia con un unico comando:
