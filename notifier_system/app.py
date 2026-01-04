@@ -6,7 +6,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from confluent_kafka import Consumer
 
-KAFKA_BROKER = 'KAFKA:9092'
+KAFKA_BROKER = 'kafka-service:9092'
 TOPIC_INPUT = 'to_notifier'
 
 SMTP_SERTVER = os.getenv('SMTP_SERVER', 'smtp.gmail.com')

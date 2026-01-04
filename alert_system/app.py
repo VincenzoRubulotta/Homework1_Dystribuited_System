@@ -2,7 +2,7 @@ import json
 import time
 from confluent_kafka import Producer, Consumer
 
-KAFKA_BROKER = 'kafka:9092'
+KAFKA_BROKER = 'kafka-service:9092'
 TOPIC_INPUT = 'to-allert-system'
 TOPIC_OUTPUT = 'to_notifier'
 

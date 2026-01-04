@@ -14,6 +14,7 @@ from circuit_breaker import CircuitBreaker, CircuitBreakerOpenException
 from concurrent import futures
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func
+from prometheus_client import Counter, Gauge, start_http_server
 
 from collector_db import init_db_connection, get_db_session
 from models import UserInterest, FlightData 
@@ -30,6 +31,22 @@ MONITOR_INTERVAL_SECONDS = int(os.getenv("MONITOR_INTERVAL", 200))
 MONITOR_INTERVAL_SECONDS_HISTORICAL = int(os.getenv("MONITOR_INTERVAL_HISTORICAL", 8 * 3600))
 open_sky_breaker = CircuitBreaker(failure_threshold = 3, recovery_timeout = 60, expected_exception = Exception)
 
+NODE_NAME = os.getenv("NODE_NAME", "local-node")
+SERVICE_NAME = "data_collector"
+
+REQUEST_COUNT = Counter(
+    'app_request_total',
+    'Numero totale di richieste ricevute',
+    ['service', 'node', 'endpoint', 'http_status']
+)
+
+OPERATION_LATENCY = Gauge(
+    'app_external_api_latency_seconds',
+    "Tempo impiegato per l'esecuzione",
+    ['service', 'node', 'endpoint']
+)
+
+start_http_server(8000)
 
 class GrpcContextAdapter:
     def __init__(self):
@@ -501,66 +518,95 @@ servicer = None
 
 @app.route('/statistics', methods=['GET'])
 def http_statistics():
-    req = dc_pb2.StatisticsRequest(
-        user_email=request.args.get('user_email', ''),
-        airport_icao=request.args.get('airport_icao', ''),
-        days=int(request.args.get('days', '0'))
-    )
+    start_time = time.time()
+    endpoint = '/statistics'
+    status_code = 200 #impostato di default
 
-    ctx = GrpcContextAdapter()
-    resp = servicer.GetStatistics(req, ctx)
+    try:
+        req = dc_pb2.StatisticsRequest(
+            user_email=request.args.get('user_email', ''),
+            airport_icao=request.args.get('airport_icao', ''),
+            days=int(request.args.get('days', '0'))
+        )
 
-    if ctx.code != grpc.StatusCode.OK:
-        return jsonify({"success": False, "message": resp.message}), 400
-    
-    return jsonify({
-        "success": resp.success,
-        "avg_arrivals": resp.avg_arrivals,
-        "avg_departures": resp.avg_departures,
-    }), 200
+        ctx = GrpcContextAdapter()
+        resp = servicer.GetStatistics(req, ctx)
+
+        if ctx.code != grpc.StatusCode.OK:
+            status_code = 400
+            return jsonify({"success": False, "message": resp.message}), 400
+        
+        return jsonify({
+            "success": resp.success,
+            "avg_arrivals": resp.avg_arrivals,
+            "avg_departures": resp.avg_departures,
+        }), 200
+    finally:
+        duration = time.time() - start_time
+        OPERATION_LATENCY.labels(service=SERVICE_NAME, node=NODE_NAME, endpoint=endpoint).set(duration)
+        REQUEST_COUNT.labels(service=SERVICE_NAME, node=NODE_NAME, endpoint=endpoint, http_status=status_code).inc()
+
 
 @app.route('/interests', methods=['POST'])
 def http_interest():
-    data = request.json
-    req = dc_pb2.InterestRequest(
-        user_email=data.get('user_email', ''),
-        airport_icao=data.get('airport_icao', []),
-        high_value=data.get('high_value', 0),
-        low_value=data.get('low_value', 0)
-    )
+    endpoint = '/interests'
+    status_code = 200
 
-    ctx = GrpcContextAdapter()
-    resp = servicer.RegisterInterest(req, ctx)
+    try:
+        data = request.json
+        req = dc_pb2.InterestRequest(
+            user_email=data.get('user_email', ''),
+            airport_icao=data.get('airport_icao', []),
+            high_value=data.get('high_value', 0),
+            low_value=data.get('low_value', 0)
+        )
 
-    status = 200 if resp.ok else 400
-    return jsonify({"ok": resp.ok, "message": resp.message}), status
+        ctx = GrpcContextAdapter()
+        resp = servicer.RegisterInterest(req, ctx)
+
+        status_code = 200 if resp.ok else 400
+        return jsonify({"ok": resp.ok, "message": resp.message}), status_code
+    finally:
+        REQUEST_COUNT.labels(service=SERVICE_NAME, node=NODE_NAME, endpoint=endpoint, http_status=status_code).inc()
+
 
 @app.route('/history', methods=['GET'])
 def http_history():
-    req = dc_pb2.InterestRequest(
-        user_email=request.args.get('user_email', ''),
-        airport_icao=[request.args.get('airport_icao', '')] if request.args.get('airport_icao', '') else [],
-        request_type=int(request.args.get('request_type', '0'))
-    )
+    start_time = time.time()
+    endpoint = '/history'
+    stasus_code = 200
 
-    ctx = GrpcContextAdapter()
-    resp = servicer.GetHistoricalData(req, ctx)
+    try:
+        req = dc_pb2.InterestRequest(
+            user_email=request.args.get('user_email', ''),
+            airport_icao=[request.args.get('airport_icao', '')] if request.args.get('airport_icao', '') else [],
+            request_type=int(request.args.get('request_type', '0'))
+        )
 
-    if not resp.success:
-        return jsonify({"success": False, "message": resp.message}), 404
-    
-    flights_json = []
-    for flight in resp.flights:
-        flights_json.append({
-            "icao24": flight.icao24,
-            "callsign": flight.callsign,
-            "est_departure_airport": flight.est_departure_airport,
-            "est_arrival_airport": flight.est_arrival_airport,
-            "first_seen": flight.first_seen,
-            "last_seen": flight.last_seen
-        })
-    
-    return jsonify({"success": True, "message": resp.message, "flights": flights_json}), 200
+        ctx = GrpcContextAdapter()
+        resp = servicer.GetHistoricalData(req, ctx)
+
+        if not resp.success:
+            status_code = 404
+            return jsonify({"success": False, "message": resp.message}), 404
+        
+        flights_json = []
+        for flight in resp.flights:
+            flights_json.append({
+                "icao24": flight.icao24,
+                "callsign": flight.callsign,
+                "est_departure_airport": flight.est_departure_airport,
+                "est_arrival_airport": flight.est_arrival_airport,
+                "first_seen": flight.first_seen,
+                "last_seen": flight.last_seen
+            })
+        
+        return jsonify({"success": True, "message": resp.message, "flights": flights_json}), 200
+    finally:
+        duration = time.time() - start_time
+        OPERATION_LATENCY.labels(service=SERVICE_NAME, node=NODE_NAME, endpoint=endpoint).set(duration)
+        REQUEST_COUNT.labels(service=SERVICE_NAME, node=NODE_NAME, endpoint=endpoint, http_status=stasus_code).inc()
+
 
 def run_http():
     app.run(host='0.0.0.0', port=HTTP_LISTEN_PORT, debug=False, use_reloader=False)

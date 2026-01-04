@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notifier-system
+  labels:
+    app: notifier
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notifier
+  template:
+    metadata:
+      labels:
+        app: notifier
+    spec:
+      containers:
+      - name: notifier-container
+        image: notifier-system:v5
+        imagePullPolicy: Never  
+        env:
+        - name: SENDER_EMAIL
+          valueFrom:
+             secretKeyRef:
+              name: app-secrets
+              key: SMTP_EMAIL
+        - name: SENDER_PASSWORD
+          valueFrom:
+             secretKeyRef:
+              name: app-secrets
+              key: SMTP_PASSWORD
+        - name: SMTP_SERVER
+          value: "smtp.gmail.com"
+        - name: SMTP_PORT
+          value: "587"
+        - name: KAFKA_BROKER
+          value: "kafka-service:9092" 
+        
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "256Mi"
+            cpu: "250m"

@@ -1,0 +1,136 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: user-db-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 500Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-db 
+spec:
+  ports:
+    - port: 5432
+  selector:
+    app: user-db
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-db
+spec:
+  selector:
+    matchLabels:
+      app: user-db
+  template:
+    metadata:
+      labels:
+        app: user-db
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: POSTGRES_PASSWORD
+        - name: POSTGRES_DB
+        volumeMounts:
+        - mountPath: /var/lib/postgresql/data
+          name: db-storage
+      volumes:
+      - name: db-storage
+        persistentVolumeClaim:
+          claimName: user-db-pvc
+
+---
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: data-db-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 500Mi
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: data-db
+spec:
+  ports:
+    - port: 5432
+  selector:
+    app: data-db
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data-db
+spec:
+  selector:
+    matchLabels:
+      app: data-db
+  template:
+    metadata:
+      labels:
+        app: data-db
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: POSTGRES_PASSWORD
+        - name: POSTGRES_DB
+          value: "flights_db"
+        volumeMounts:
+        - mountPath: /var/lib/postgresql/data
+          name: db-storage
+      volumes:
+      - name: db-storage
+        persistentVolumeClaim:
+          claimName: data-db-pvc
