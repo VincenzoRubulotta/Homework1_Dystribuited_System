@@ -1,33 +1,36 @@
 # --- 1. FILE SENSIBILI (FONDAMENTALE) ---
-# Ignora il file delle credenziali nello specifico
 data_collector/credentials.json
-# Ignora qualsiasi file con questo nome nel progetto (per sicurezza extra)
 credentials.json
-
 nginx-selfsigned.crt
 nginx-selfsigned.key
 certs/
 .env
+
 # --- 2. AMBIENTE VIRTUALE ---
-# Ignora la cartella dove hai installato le librerie (pesantissima e inutile su GitHub)
 .venv/
 venv/
 env/
 
 # --- 3. FILE TEMPORANEI PYTHON ---
-# Cache create automaticamente da Python
 __pycache__/
 *.py[cod]
 *$py.class
 
 # --- 4. FILE DI SISTEMA E IDE ---
-# File inutili creati dal Mac
 .DS_Store
-# Configurazioni locali di VS Code
 .vscode/
 
-# --- 5. Dati dei Database (Se salvati in locale) ---
-# Ignora cartelle dati se mai dovessi estrarle dai volumi
+# --- 5. DATI E LOG ---
 postgres_data/
 pgdata/
+*.log
 
+# --- 6. KUBERNETES SECRETS (Corretto) ---
+# Ignora qualsiasi file yaml che contenga la parola "secret" dentro la cartella k8s
+k8s/*secret*.yaml
+k8s/*secret*.yml
+
+# --- 7. FILE LEGACY (DOCKER COMPOSE) ---
+# Rimosso il punto iniziale per farlo funzionare davvero
+docker-compose.yaml
+docker-compose.yml

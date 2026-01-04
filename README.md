@@ -1,76 +1,143 @@
-# Homework 2
+# Homework 3: Kubernetes Migration & White-box Monitoring
 
 **Autore:** Vincenzo Rubulotta
-**Data:** Dicembre 2025
-**Obiettivo:** Evoluzione dell'architettura a microservizi con introduzione di Nginx come Reverse Proxy, Pattern Circuit Breaker e un'architettura **Event-Driven basata su Kafka** per la gestione asincrona degli alert e delle notifiche.
+**Data:** Gennaio 2026
+**Obiettivo:** Migrazione dell'architettura a microservizi su **Kubernetes (Kind)**, implementazione del pattern **White-box Monitoring** tramite **Prometheus** e automazione del processo di build & deploy.
 
 ---
 
 ## 1. Architettura del Sistema e Scelte Progettuali
 
-Il sistema è stato aggiornato sostituendo il Gateway applicativo con **Nginx** e introducendo un bus di messaggistica (Kafka) per disaccoppiare la logica di business dalla gestione degli allarmi.
+L'infrastruttura è stata evoluta abbandonando l'orchestrazione tramite Docker Compose in favore di un cluster **Kubernetes** locale. Il sistema mantiene la natura Event-Driven (basata su Kafka) ma introduce nuove componenti per l'osservabilità e la gestione del traffico.
 
-### Componenti e Protocolli
+### Componenti Principali
 
-| Servizio | Ruolo | Protocollo Esterno | Protocollo Interno | Rete Docker |
-| :--- | :--- | :--- | :--- | :--- |
-| **Nginx (Reverse Proxy)** | Entry point, Load Balancing e routing | **REST/HTTPS** (Porta 443) | gRPC / HTTPS | `service_net` |
-| **User Manager (UM)** | Gestione CRUD Utenti e persistenza | - | gRPC (Server) | `service_net`, `user_db_net` |
-| **Data Collector (DC)** | Logica Voli, API OpenSky, Circuit Breaker | - | gRPC (Server) / **Kafka** (Producer) | `service_net`, `data_db_net` |
-| **Alert System** | Elaborazione regole e trigger allarmi | - | **Kafka** (Producer & Consumer) | `service_net` |
-| **Notifier System** | Spedizione notifiche finali | - | **Kafka** (Consumer) | `service_net` |
-| **Kafka & Zookeeper** | Message Broker e coordinamento | - | TCP (9092) | `service_net` |
-| **PostgreSQL DBs** | Persistenza dati isolata | - | TCP (5432) | `user_db_net` / `data_db_net` |
+| Componente | Ruolo | Tipo Service K8s | Porte Esposte (Host -> Node -> Pod) |
+| :--- | :--- | :--- | :--- |
+| **Nginx Gateway** | Ingress Point e terminazione SSL | **NodePort** | 443 -> 30443 -> 443 |
+| **Prometheus** | Server di monitoraggio metriche | **NodePort** | 9090 -> 30090 -> 9090 |
+| **User Manager** | Gestione Utenti (gRPC/REST) | ClusterIP | - |
+| **Data Collector** | Logica Voli e Circuit Breaker | ClusterIP | - |
+| **Kafka & Zookeeper** | Message Broker Asincrono | ClusterIP | - |
+| **Alert & Notifier** | Consumer per notifiche e email | - (Deployment) | - |
+| **Database** | PostgreSQL e MongoDB | ClusterIP | - |
 
 ### Scelte di Design Critiche
 
-1.  **Event-Driven Architecture (Kafka):** La comunicazione per gli allarmi asincrona.
-    * **Data Collector:** Agisce come Producer (per dati di volo).
-    * **Alert System:** Consuma i dati di volo, verifica le soglie e Produce eventi di allarme.
-    * **Notifier System:** Consuma gli eventi di allarme e gestisce l'invio della notifica tramite posta eletronica.
-2.  **Nginx come Reverse Proxy:** Sostituzione del precedente API Gateway Flask con Nginx per gestire l'ingresso del traffico HTTPS e il routing verso i microservizi.
-3.  **Fault Tolerance (Circuit Breaker):** Implementazione custom del pattern Circuit Breaker nel Data Collector per gestire i fallimenti delle chiamate verso API esterne (OpenSky), prevenendo il sovraccarico.
-4.  **Network Isolation:** Introduzione di una rete dedicata `kafka_net` per il traffico di messaggistica, oltre alle reti di servizio e database.
+1.  **Kubernetes & Kind:** L'intero stack viene eseguito su un cluster Kind configurato con `extraPortMappings` per esporre direttamente le porte **443** (Gateway) e **9090** (Prometheus) su `localhost`, eliminando la necessità di port-forwarding manuali.
+2.  **White-box Monitoring (Prometheus):** I microservizi *User Manager* e *Data Collector* sono stati strumentati per esporre metriche custom (Counter e Gauge) sulla porta `8000`. Prometheus effettua lo *scraping* di queste metriche sfruttando il Service Discovery di Kubernetes.
+3.  **Gestione Segreti (Security):** Le credenziali sensibili non sono incluse nei manifest ma iniettate tramite oggetti `Secret` di Kubernetes.
+4.  **Automazione:** Un singolo script bash gestisce l'intero ciclo di vita: creazione cluster, build delle immagini, caricamento in Kind e applicazione dei manifest.
 
 ---
 
-## 2. Prerequisiti e Configurazione
+## 2. Prerequisiti e Configurazione Segreti
 
-### Nota sulla Compilazione Protobuf
-**I file Protobuf (`.proto`) sono già stati compilati.**
-Tutti i file Python generati necessari per il funzionamento dei microservizi gRPC sono inclusi.
+### Requisiti Software
+* **Docker Desktop** (attivo)
+* **Kind** (Kubernetes in Docker)
+* **Kubectl** (CLI Kubernetes)
 
-### Requisiti
-Per avviare il progetto è necessario avere:
-* **Docker** e **Docker Compose** installati e attivi.
-* Il file **`credentials.json`** (con le credenziali OpenSky Network) posizionato in:
-  `./data_collector/credentials.json`
-* Il file contenente la chiave e il file contenente il certificato per poter effettuare le chiamate https appositamente inseriti all'interno di una cartella `cert` posizionata all'interno della directory principale del progetto, i file devono essere denominati `nginx-selfsigned.crt`  e `nginx-selfsigned.key`
+### Configurazione di Sicurezza (Obbligatoria)
+Prima di avviare il deployment, è **necessario** creare manualmente il file dei segreti, poiché è escluso dal repository per motivi di sicurezza.
 
-### 2.1. Avvio del Sistema
-L'intera infrastruttura (inclusi i container Kafka e Zookeeper) si avvia con un unico comando:
+1. Creare il file: `k8s/00-secret.yaml`
+2. Inserire il seguente contenuto compilando i campi mancanti:
 
-```bash
-docker compose up -d --build
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets
+type: Opaque
+stringData:
+  # Database Credentials
+  POSTGRES_USER: "admin"
+  POSTGRES_PASSWORD: "CHANGE_ME"
+  
+  # Security
+  JWT_SECRET: "CHANGE_ME_SECURE_KEY"
+  
+  # External APIs
+  OPENSKY_USER: "tuo_username_opensky"
+  OPENSKY_PASS: "tua_password_opensky"
+  
+  # Email Service
+  SMTP_EMAIL: "tua_email@gmail.com"
+  SMTP_PASSWORD: "tua_app_password"
 
 
-3. Testing e Automazione (Postman)
-L'interfaccia pubblica del sistema è accessibile tramite Nginx (port 443 SSL).
+  Nota: I certificati SSL (nginx-selfsigned.crt e .key) per il Gateway sono gestiti automaticamente tramite un Secret dedicato o montati come volumi. Assicurarsi che siano presenti nella cartella cert/ nella root del progetto.
 
-3.1. Test Automatizzato
+  3. Build & Deployment Automatizzato
+Non è più necessario utilizzare Docker Compose. È stato predisposto uno script di automazione deploy.sh che esegue in sequenza:
 
-Nella repository è inclusa la Collection Postman aggiornata che riflette i nuovi endpoint e flussi di interazione. I test verificano sia le risposte sincrone (REST/gRPC) sia l'integrità del flusso asincrono gestito da Kafka (Se si vuoile testare completamente il monitoraggio cicilico con invio notifiche via email si deve testare tutta la collection eccetto l'API REST 6.Delete User).
-Si consiglia di creare un file .env dove configurare tutte le variabili richieste all'interno del docker-compose.yaml
+Creazione del Cluster Kind con mappatura porte (80, 443, 9090).
+
+Build delle immagini Docker dai sorgenti locali.
+
+Caricamento delle immagini nei nodi del cluster (evitando il push su registry remoti).
+
+Applicazione di tutti i manifest Kubernetes (k8s/*.yaml).
+
+Avvio del Sistema
+
+Eseguire dalla root del progetto:
+
+chmod +x deploy.sh
+./deploy.sh
 
 
+Attendere che lo script termini e che i Pod siano in stato Running (verificare con kubectl get pods).
 
-Struttura delle Directory
+Accesso ai Servizi
 
-Homework2/
-├── nginx.conf        
-├── user_manager/     
-├── data_collector/    
-├── alert_system/      
-├── notifier_system/   
-├── docker-compose.yml 
-└── README.md        
+Una volta completato il deploy, il sistema è accessibile ai seguenti indirizzi:
+
+Applicazione Web (API Gateway): https://localhost (Accettare il certificato self-signed).
+
+Dashboard Prometheus: http://localhost:9090.
+
+
+4. Testing e Monitoraggio
+4.1 Test Funzionali (Postman)
+
+Nella repository è inclusa la Collection Postman aggiornata. I test verificano l'intero flusso:
+
+Registrazione/Login utente.
+
+Avvio raccolta dati voli.
+
+Verifica ricezione notifiche (Email) tramite architettura asincrona Kafka.
+
+4.2 Verifica Metriche
+
+Per verificare il funzionamento del monitoraggio:
+
+Generare traffico usando la collection Postman.
+
+Accedere a http://localhost:9090.
+
+Eseguire query sulle metriche custom, ad esempio:
+
+user_manager_requests_total
+
+data_collector_processing_time_seconds
+
+5. Struttura delle Directory
+
+Homework3/
+├── deploy.sh              # Script di automazione Build & Deploy
+├── kind-config.yaml       # Configurazione porte Cluster Kind
+├── k8s/                   # Manifest Kubernetes (Deployment, Service, ConfigMap)
+│   ├── 00-secret.yaml     # (DA CREARE MANUALMENTE - vedi punto 2)
+│   ├── prometheus.yaml
+│   ├── api-gateway.yaml
+│   └── ...
+├── nginx.conf             # Configurazione Ingress Gateway
+├── user_manager/          # Codice sorgente e Dockerfile
+├── data_collector/        # Codice sorgente e Dockerfile
+├── alert_system/          # Codice sorgente e Dockerfile
+├── notifier_system/       # Codice sorgente e Dockerfile
+├── cert/                  # Certificati SSL self-signed
+└── README.md
